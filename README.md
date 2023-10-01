@@ -12,6 +12,7 @@
 [OpenAI API](https://openai.com/api/) を使用して一般的なタスクを達成するための例コードとガイドです。これらの例を実行するには、OpenAI アカウントと関連する API キーが必要です（[こちらで無料アカウントを作成](https://beta.openai.com/signup)）。
 
 ほとんどのコード例はPythonで書かれていますが、そのコンセプトは任意の言語で適用できます。
+このレポジトリは[OpenAI cookbook](https://github.com/openai/openai-cookbook)を日本語に翻訳中のレポジトリです。
 
 ## 貢献
 

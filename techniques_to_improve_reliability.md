@@ -263,9 +263,7 @@ IRSのガイダンス：
 
 小学校の数学の問題に対するテストでは、著者らはチェーン・オブ・ソートのプロンプトが解決率を3倍に引き上げ、18％から57％に向上させることがわかりました。
 
-[![チェーン・オブ・ソートの例](images
-
-/chain_of_thought_fig5.png)
+[![チェーン・オブ・ソートの例](images/chain_of_thought_fig5.png)
 <br>出典：Jason WeiとDenny Zhouらによる「Chain of Thought Prompting Elicits Reasoning in Large Language Models」（2022）](https://ai.googleblog.com/2022/05/language-models-perform-reasoning-via.html)
 
 数学の問題に加えて、チェーン・オブ・ソートのプロンプトはスポーツ理解に関連する質問、コイントスの追跡、および最後の文字の連結に関連する質問のパフォーマンスも向上させました。ほとんどの場合、パフォーマンスの向上には多くの例が必要ではありませんでした（約8つ以下）。
