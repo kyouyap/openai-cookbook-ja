@@ -1,36 +1,36 @@
-# Enterprise Knowledge Retrieval
+# 企業向け知識検索
 
-This app is a deep dive on Enterprise Knowledge Retrieval, which aims to take some unstructured text documents and create a usable knowledge base application with it.
+このアプリケーションは、非構造化テキスト文書を取り扱い、それを使用可能な知識ベースアプリケーションに変換することを目指す、企業向け知識検索に関する詳細な調査です。
 
-This repo contains a notebook and a basic Streamlit app:
-- `enterprise_knowledge_retrieval.ipynb`: A notebook containing a step by step process of tokenising, chunking and embedding your data in a vector database, building a chat agent on top and running a basic evaluation of its performance.
-- `chatbot.py`: A Streamlit app providing simple Q&A via a search bar to query your knowledge base.
+このリポジトリにはノートブックと基本的なStreamlitアプリが含まれています：
+- `enterprise_knowledge_retrieval.ipynb`：データのトークン化、チャンキング、埋め込みを段階的に実行し、ベクトルデータベースに知識を構築し、それを基にチャットエージェントを構築し、その性能を基本的に評価するプロセスが記述されたノートブックです。
+- `chatbot.py`：知識ベースへのクエリを通じたシンプルなQ&Aを提供するStreamlitアプリです。
 
-To run the app, please follow the instructions below in the ```App``` section
+アプリを実行するには、以下の「App」セクションに記載された手順に従ってください。
 
-## Notebook
+## ノートブック
 
-The notebook is the best place to start, and takes you through an end-to-end workflow for setting up and evaluating a simple back-end knowledge retrieval service:
-- **Setup:** Initiate variables and connect to a vector database.
-- **Storage:** Configure the database, prepare our data and store embeddings and metadata for retrieval.
-- **Search:** Extract relevant documents back out with a basic search function and use an LLM to summarise results into a concise reply.
-- **Answer:** Add a more sophisticated agent which will process the user's query and maintain a memory for follow-up questions.
-- **Evaluate:** Take question/answer pairs using our service, evaluate and plot them to scope out remedial action
+ノートブックは最適なスタート地点であり、シンプルなバックエンド知識検索サービスの設定と評価を行うためのエンドツーエンドのワークフローを紹介します：
+- **セットアップ：** 変数の初期化およびベクトルデータベースへの接続。
+- **ストレージ：** データベースの設定、データの準備、埋め込みと検索用のメタデータの格納。
+- **検索：** 基本的な検索機能を備えた関連文書の抽出、および結果を簡潔な回答に要約するためのLLMの使用。
+- **回答：** ユーザーのクエリを処理し、フォローアップの質問に対応するための高度なエージェントの追加。
+- **評価：** サービスを使用して質問/回答ペアを受け取り、それらを評価し、対策のためにプロットします。
 
-Once you've run the notebook through to the Search stage, you should have what you need to set up and run the app.
+ノートブックを「Search」ステージまで実行したら、アプリを設定して実行するために必要なものが揃います。
 
-## App
+## アプリ
 
-We've rolled in a basic Streamlit app that you can interact with to test your retrieval service using either standard semantic search or [HyDE](https://arxiv.org/abs/2212.10496) retrievals.
+標準の意味論的検索または[HyDE](https://arxiv.org/abs/2212.10496)検索を使用して、検索サービスをテストするために対話できる基本的なStreamlitアプリを組み込んでいます。
 
-To use it:
-- Ensure you followed the Setup and Storage steps from the notebook to populate a vector database with searchable content.
-- Set up a virtual environment with pip by running ```virtualenv venv``` (ensure ```virtualenv``` is installed).
-- Activate the environment by running ```source venv/bin/activate```.
-- Install requirements by running ```pip install -r requirements.txt```.
-- Run ```streamlit run chatbot.py``` to fire up the Streamlit app in your browser.
+使用方法：
+- ノートブックからセットアップとストレージの手順に従い、検索可能なコンテンツを含むベクトルデータベースを準備します。
+- `virtualenv`がインストールされていることを確認し、`virtualenv venv`を実行して仮想環境を設定します。
+- 仮想環境をアクティブにするには、`source venv/bin/activate`を実行します。
+- `pip install -r requirements.txt`を実行して必要なパッケージをインストールします。
+- ブラウザでStreamlitアプリを起動するには、`streamlit run chatbot.py`を実行します。
 
-## Limitations
+## 制限事項
 
-- This app uses Redis as a vector database, but there are many other options highlighted `../examples/vector_databases` depending on your need.
-- We introduce many areas you may optimize in the notebook, but we'll deep dive on these in subsequent cookbooks.
+- このアプリはベクトルデータベースとしてRedisを使用していますが、必要に応じて他のオプションが`../examples/vector_databases`で示されています。
+- ノートブックでは最適化の余地が多く紹介されていますが、これらについては後続のクックブックで詳しく説明します。

@@ -1,94 +1,91 @@
-from typing import List, Union
-
-from smokey import Smokey
+from typing import List, Union, Tuple, Optional
 
 import openai
 
 
-def get_candidates(
-    prompt: str,
-    stop: List[str],
-    temperature: float,
-    priming_prefix: str,
-    engine: str,
-    n: int = 5,
-) -> List[str]:
+def create_completion(engine: str, prompt: str, stop: List[str], n: int, temperature: float) -> openai.Completion:
     """
-    Generate N candidate completions based on the prompt, generated with a specific temperature.
+    OpenAIのAPIを用いてテキスト生成を行います。
 
-    :param prompt: The prompt to start the conversation with.
-    :param stop: A list of tokens that indicate the end of the generation.
-    :param temperature: The temperature of the generation.
-    :param priming_prefix: The prefix to use for the priming.
-    :param engine: The engine to use for the generation.
-    :param n: The number of completions to generate.
-    :return: A list of completions.
+    :param engine: 使用するGPTエンジン。
+    :param prompt: プロンプトとして用いるテキスト。
+    :param stop: テキスト生成を停止するトークンのリスト。
+    :param n: 生成するテキストの数。
+    :param temperature: テキスト生成のランダム性を制御する温度。
+    :return: 生成されたテキスト。
     """
-    response = openai.Completion.create(
+    return openai.Completion.create(
         engine=engine,
         prompt=prompt,
+        stop=stop,
+        n=n,
         temperature=temperature,
         max_tokens=150,
         top_p=1,
         frequency_penalty=0,
         presence_penalty=0,
-        stop=stop,
-        n=n,
     )
-    responses = [priming_prefix + choice.text for choice in response.choices]
-    return responses
+
+
+def prepare_responses(response: openai.Completion, priming_prefix: str) -> List[str]:
+    """
+    OpenAI APIから得られたレスポンスを整形します。
+
+    :param response: OpenAI APIのレスポンス。
+    :param priming_prefix: プライミング接頭辞。
+    :return: 整形後のレスポンス。
+    """
+    return [priming_prefix + choice.text for choice in response.choices]
+
+
+def calc_log_prob(response: openai.Completion, answer_start_token: str) -> float:
+    """
+    ログ確率を計算します。
+
+    :param response: OpenAI APIのレスポンス。
+    :param answer_start_token: 回答の開始トークン。
+    :return: ログ確率。
+    """
+    answer_start = rindex(response["choices"][0]["logprobs"]["tokens"], answer_start_token)
+    logprobs = response["choices"][0]["logprobs"]["token_logprobs"][answer_start + 1 :]
+    return sum(logprobs) / len(logprobs)
 
 
 def rindex(lst: List, value: str) -> int:
     """
-    Return the index of the last occurence of a value in a list.
+    リスト内で指定された値の最後のインデックスを返します。
 
-    :param lst: The list to search in.
-    :param value: The value to search for.
-    :return: The index of the last occurence of the value.
+    :param lst: 検索対象のリスト。
+    :param value: 検索対象の値。
+    :return: 最後のインデックス。
     """
     try:
         return len(lst) - lst[::-1].index(value) - 1
-    except ValueError:
-        raise ValueError(f"Answer start token `{value}` not found in the eval template")
+    except ValueError as exc:
+        raise ValueError(f"Answer start token `{value}` not found in the eval template") from exc
 
 
-def eval_candidate(
-    candidate_answer: str,
-    original_instruction: str,
-    eval_template: str,
-    answer_start_token: str,
-    engine: str,
-) -> float:
+def evaluate_and_sort_candidates(
+    candidates: List[str], instruction: str, eval_template: str, answer_start_token: str, engine: str
+) -> List[Tuple[str, float]]:
     """
-    Evaluate a candidate answer by calculating the average log probability
-    of the original instruction, given the candidate answer with a specific
-    evaluation template, aimed at reconstructing the original instruction.
+    候補を評価し、ソートします。
 
-    :param candidate_answer: The candidate answer to evaluate.
-    :param original_instruction: The original instruction.
-    :param eval_template: The template to use for the evaluation.
-    :param answer_start_token: The token to use to indicate the start of the answer.
-    :param engine: The engine to use for the evaluation.
-    :return: The evaluation of the candidate answer.
+    :param candidates: 評価対象の候補。
+    :param instruction: 元の指示。
+    :param eval_template: 評価用のテンプレート。
+    :param answer_start_token: 回答の開始トークン。
+    :param engine: 使用するGPTエンジン。
+    :return: 評価とソートが終わった候補。
     """
-    response = openai.Completion.create(
-        engine=engine,
-        prompt=eval_template.format(candidate_answer, original_instruction),
-        temperature=0,
-        max_tokens=0,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
-        logprobs=1,
-        echo=True,
-    )
+    evaluated_candidates = []
 
-    answer_start = rindex(
-        response["choices"][0]["logprobs"]["tokens"], answer_start_token
-    )
-    logprobs = response["choices"][0]["logprobs"]["token_logprobs"][answer_start + 1 :]
-    return sum(logprobs) / len(logprobs)
+    for candidate in candidates:
+        response = create_completion(engine, eval_template.format(candidate, instruction), [], 1, 0)
+        quality = calc_log_prob(response, answer_start_token)
+        evaluated_candidates.append((candidate, quality))
+
+    return sorted(evaluated_candidates, key=lambda x: x[1], reverse=True)
 
 
 def backtranslation(
@@ -97,93 +94,76 @@ def backtranslation(
     instruction: str,
     eval_template: str,
     priming_prefix: str = "SELECT",
-    stop1: List[str] = ["#", ";"],
+    stop1: Optional[List[str]] = None,
     answer_start_token: str = "--",
     n: int = 5,
     temperature: float = 0.5,
     return_all_results: bool = False,
     engine: str = "davinci-codex",
-) -> Union[str, List[str, float]]:
+) -> Union[str, List[Tuple[str, float]]]:
     """
-    Generate a number of SQL queries given a natural language instruction,
-    and pick the best one based on the average log probability of explaining the
-    candidate SQL query with the exact original instruction, when prompted for
-    a natural language explanation of the candidate SQL query.
+    逆翻訳を用いて最適なSQLクエリを生成します。
 
-    :param prompt_template: The template to use for the prompt to generate SQL.
-    :param additional_info: Additional information to include in the prompt
-                            (SQL Tables, and their properties).
-    :param instruction: The instruction in natural language.
-    :param eval_template: The template to use for the evaluation.
-    :param priming_prefix: The prefix to use for the priming of the SQL query.
-    :param stop1: A list of tokens that indicate the end of the generation.
-    :param answer_start_token: The token to use to indicate the start of the
-                               natural answer.
-    :param n: The number of candidates to generate.
-    :param temperature: The temperature of the generation.
-    :param return_all_results: Whether to return all results or just the best one.
-    :param engine: The engine to use for the generation and evaluation.
-    :return: The best SQL query, or a list of all scored generated SQL queries.
+    :param prompt_template: プロンプトテンプレート。
+    :param additional_info: 追加情報。
+    :param instruction: 自然言語の指示。
+    :param eval_template: 評価用のテンプレート。
+    :param priming_prefix: プライミング接頭辞。
+    :param stop1: 終了トークン。
+    :param answer_start_token: 回答の開始トークン。
+    :param n: 候補数。
+    :param temperature: テキスト生成の温度。
+    :param return_all_results: すべての結果を返すかどうか。
+    :param engine: 使用するGPTエンジン。
+    :return: 最適なSQLクエリ、またはすべての候補。
     """
-    prompt_template = prompt_template.format(
-        additional_info, instruction, priming_prefix
+    if stop1 is None:
+        stop1 = ["#", ";"]
+    prompt = prompt_template.format(additional_info, instruction, priming_prefix)
+    response = create_completion(engine, prompt, stop1, n, temperature)
+    candidates = prepare_responses(response, priming_prefix)
+    evaluated_candidates = evaluate_and_sort_candidates(
+        candidates, instruction, eval_template, answer_start_token, engine
     )
 
-    candidates = []
-    responses = get_candidates(
-        prompt_template, stop1, temperature, priming_prefix, engine=engine, n=n
-    )
-    for i in range(n):
-        quality = eval_candidate(
-            responses[i],
-            instruction,
-            eval_template,
-            answer_start_token,
-            engine=engine,
-        )
-        candidates.append((responses[i], quality))
-
-    candidates.sort(key=lambda x: x[1], reverse=True)
-    if return_all_results:
-        return candidates
-    return candidates[0][0]
+    return evaluated_candidates if return_all_results else evaluated_candidates[0][0]
 
 
 def main(
-    nl_query: str = "Return the name of each department that had more than 10 employees in June 2021",
-    eval_template: str = "{};\n-- Explanation of the above query in human readable format\n-- {}",
+    natural_language_query: str = "Return the name of each department that had more than 10 employees in June 2021",
+    evaluation_template: str = "{};\n-- 以下のクエリに関する説明\n-- {}",
     table_definitions: str = "# Employee(id, name, department_id)\n# Department(id, name, address)\n# Salary_Payments(id, employee_id, amount, date)\n",
-    prompt_template: str = "### Postgres SQL tables, with their properties:\n#\n{}#\n### {}\n{}",
-    n: int = 3,
-    temperature: float = 0.3,
-    engine: str = "davinci-codex",
-):
+    prompt_template: str = "### Postgres SQLテーブルとそのプロパティ:\n#\n{}#\n### {}\n{}",
+    num_candidates: int = 3,
+    generation_temperature: float = 0.3,
+    engine_type: str = "davinci-codex",
+) -> List[str]:
     """
-    Generate a number of SQL queries given a natural language instruction,
-    and pick the best one based on the highest backtranslation score.
+    自然言語の指示に基づいてSQLクエリを生成し、最も高いバックトランスレーションスコアに基づいて最適なものを選択します。
 
-    :param nl_query: The natural language query.
-    :param eval_template: The template to use for the evaluation.
-    :param table_definitions: The definitions of the tables used in the query.
-    :param prompt_template: The template to use for the prompt to generate SQL.
-    :param n: The number of candidates to generate.
-    :param temperature: The temperature of the generation.
-    :param engine: The engine to use for the generation and evaluation.
-    :return: The best SQL query, or a list of all scored generated SQL queries.
+    :param natural_language_query: 自然言語のクエリ。
+    :param evaluation_template: 評価用のテンプレート。
+    :param table_definitions: クエリで使用するテーブルの定義。
+    :param prompt_template: SQLを生成するためのプロンプトのテンプレート。
+    :param num_candidates: 生成するクエリの数。
+    :param generation_temperature: 生成の温度。
+    :param engine_type: 使用するエンジン。
+    :return: 最適なSQLクエリ、またはスコア付けされた生成されたSQLクエリのリスト。
     """
 
     result = backtranslation(
         prompt_template,
         table_definitions,
-        nl_query,
-        eval_template,
+        natural_language_query,
+        evaluation_template,
         priming_prefix="SELECT",
-        temperature=temperature,
-        n=n,
-        engine=engine,
+        temperature=generation_temperature,
+        n=num_candidates,
+        engine=engine_type,
     )
-    print(result)
+
+    return result
 
 
 if __name__ == "__main__":
-    Smokey(main)
+    main()
